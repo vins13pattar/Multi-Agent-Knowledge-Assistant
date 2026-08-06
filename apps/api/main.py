@@ -22,9 +22,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# CORS_ALLOWED_ORIGINS is a comma-separated list of trusted browser origins
+# (e.g. "https://ui.example.com"). Wildcard origins can never be combined
+# with allow_credentials=True — browsers will not honor it, and it would
+# otherwise let any site make credentialed requests as the logged-in user.
+_cors_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,7 +85,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 class CreateUserRequest(BaseModel):
     email: str
     password: str
-    role: str = "employee"
+    role: UserRole = UserRole.employee
 
 @app.get("/api/v1/users", tags=["Users"])
 def list_users(db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
@@ -143,10 +148,14 @@ def upload_document(
     from src.rag.chunking.text_splitter import split_documents
     from src.rag.retrieval.chroma_store import add_documents_to_store
     import hashlib
+    from pathlib import Path
 
     upload_dir = "/tmp/knowledge_assistant_uploads"
     os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, file.filename)
+    # Derive the on-disk name from a UUID + the original extension only —
+    # never trust a client-supplied filename as a filesystem path.
+    safe_suffix = Path(file.filename or "").suffix[:10]
+    file_path = os.path.join(upload_dir, f"{uuid.uuid4()}{safe_suffix}")
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -183,7 +192,10 @@ def upload_document(
 
 @app.get("/api/v1/documents", tags=["Documents"])
 def list_documents(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    docs = db.query(Document).order_by(Document.created_at.desc()).all()
+    query = db.query(Document)
+    if current_user["role"] != "admin":
+        query = query.filter(Document.access_scope == "shared")
+    docs = query.order_by(Document.created_at.desc()).all()
     return [{"id": str(d.id), "name": d.name, "status": d.status.value, "chunk_count": d.chunk_count, "created_at": str(d.created_at)} for d in docs]
 
 # ---------------------------------------------------------------------------
@@ -246,7 +258,10 @@ def _run_chat_graph(convo: Conversation, request: ChatRequest, current_user: dic
         # Tool-call path paused at the HITL breakpoint: auto-resume low risk,
         # otherwise create an ApprovalRequest and wait for a human decision.
         if snapshot.next and "tool_execution" in snapshot.next:
-            risk = state_values.get("risk_level", "low")
+            # Fail closed: an unclassified action requires approval rather
+            # than auto-executing, so a missing/broken safety classification
+            # can never silently skip HITL review.
+            risk = state_values.get("risk_level") or "critical"
             if risk == "low":
                 for step in assistant_graph.stream(None, config=config):
                     for node_name in step.keys():
@@ -433,6 +448,12 @@ class FeedbackRequest(BaseModel):
 
 @app.post("/api/v1/feedback", tags=["Feedback"])
 def submit_feedback(request: FeedbackRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    message = db.query(Message).filter(Message.id == request.message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if str(message.conversation.user_id) != current_user["user_id"] and current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Access denied")
+
     fb = Feedback(
         message_id=request.message_id,
         user_id=current_user["user_id"],

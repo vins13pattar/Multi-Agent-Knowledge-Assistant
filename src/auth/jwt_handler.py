@@ -5,7 +5,12 @@ import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-JWT_SECRET = os.getenv("JWT_SECRET", "super-secret-fallback-key")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET is not set. Refusing to start with an insecure default — "
+        "set JWT_SECRET to a long random value (see .env.example)."
+    )
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -33,6 +38,6 @@ def sign_jwt(user_id: str, role: str) -> str:
 def decode_jwt(token: str) -> dict:
     try:
         decoded_token = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return decoded_token if decoded_token["expires"] >= time.time() else None
-    except:
+    except jwt.PyJWTError:
         return None
+    return decoded_token if decoded_token["expires"] >= time.time() else None

@@ -213,7 +213,8 @@ def tool_execution_node(state: AssistantState) -> Dict[str, Any]:
     (low risk) or the human has approved/rejected via /api/v1/approvals, which
     updates `approval_status` on the checkpoint before resuming.
     """
-    risk = state.get("risk_level", "low")
+    # Fail closed: an unclassified action is never treated as low risk.
+    risk = state.get("risk_level") or "critical"
     approval_status = state.get("approval_status")
 
     if risk != "low" and approval_status != "approved":
