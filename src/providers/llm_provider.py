@@ -27,76 +27,70 @@ class LLMProvider(Protocol):
         ...
 
 
-class OpenAIProvider:
+def _make_openai_chat_model(model: str, temperature: float):
+    from langchain_openai import ChatOpenAI
+    return ChatOpenAI(model=model, temperature=temperature)
+
+
+def _make_anthropic_chat_model(model: str, temperature: float):
+    from langchain_anthropic import ChatAnthropic
+    return ChatAnthropic(model=model, temperature=temperature)
+
+
+class _ChatModelProvider:
+    """Shared LLMProvider implementation over a LangChain chat model."""
+
+    def __init__(self, name: str, api_key_env: str, make_chat_model, default_model_env: str, default_model: str):
+        if not os.getenv(api_key_env):
+            raise ValueError(f"{api_key_env} is not set")
+        self.name = name
+        self._make_chat_model = make_chat_model
+        self.default_model = os.getenv(default_model_env, default_model)
+
+    def generate(
+        self,
+        messages: List[Dict[str, str]],
+        model: str = None,
+        temperature: float = 0.7,
+        response_schema: Optional[Type[BaseModel]] = None,
+    ) -> LLMResponse:
+        chosen_model = model or self.default_model
+        llm = self._make_chat_model(chosen_model, temperature)
+
+        if response_schema:
+            structured_llm = llm.with_structured_output(response_schema)
+            result = structured_llm.invoke(messages)
+            return LLMResponse(content="", structured_output=result, provider=self.name, model=chosen_model)
+
+        result = llm.invoke(messages)
+        return LLMResponse(
+            content=result.content,
+            tool_calls=getattr(result, "tool_calls", None),
+            provider=self.name,
+            model=chosen_model,
+        )
+
+
+def OpenAIProvider() -> _ChatModelProvider:
     """OpenAI implementation of the LLMProvider."""
-
-    name = "openai"
-
-    def __init__(self):
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY is not set")
-        self.default_model = os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini")
-
-    def generate(
-        self,
-        messages: List[Dict[str, str]],
-        model: str = None,
-        temperature: float = 0.7,
-        response_schema: Optional[Type[BaseModel]] = None,
-    ) -> LLMResponse:
-        from langchain_openai import ChatOpenAI
-
-        chosen_model = model or self.default_model
-        llm = ChatOpenAI(model=chosen_model, temperature=temperature)
-
-        if response_schema:
-            structured_llm = llm.with_structured_output(response_schema)
-            result = structured_llm.invoke(messages)
-            return LLMResponse(content="", structured_output=result, provider=self.name, model=chosen_model)
-
-        result = llm.invoke(messages)
-        return LLMResponse(
-            content=result.content,
-            tool_calls=getattr(result, "tool_calls", None),
-            provider=self.name,
-            model=chosen_model,
-        )
+    return _ChatModelProvider(
+        name="openai",
+        api_key_env="OPENAI_API_KEY",
+        make_chat_model=_make_openai_chat_model,
+        default_model_env="OPENAI_DEFAULT_MODEL",
+        default_model="gpt-4o-mini",
+    )
 
 
-class AnthropicProvider:
+def AnthropicProvider() -> _ChatModelProvider:
     """Anthropic implementation of the LLMProvider, used as failover."""
-
-    name = "anthropic"
-
-    def __init__(self):
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            raise ValueError("ANTHROPIC_API_KEY is not set")
-        self.default_model = os.getenv("ANTHROPIC_DEFAULT_MODEL", "claude-3-5-haiku-20241022")
-
-    def generate(
-        self,
-        messages: List[Dict[str, str]],
-        model: str = None,
-        temperature: float = 0.7,
-        response_schema: Optional[Type[BaseModel]] = None,
-    ) -> LLMResponse:
-        from langchain_anthropic import ChatAnthropic
-
-        chosen_model = model or self.default_model
-        llm = ChatAnthropic(model=chosen_model, temperature=temperature)
-
-        if response_schema:
-            structured_llm = llm.with_structured_output(response_schema)
-            result = structured_llm.invoke(messages)
-            return LLMResponse(content="", structured_output=result, provider=self.name, model=chosen_model)
-
-        result = llm.invoke(messages)
-        return LLMResponse(
-            content=result.content,
-            tool_calls=getattr(result, "tool_calls", None),
-            provider=self.name,
-            model=chosen_model,
-        )
+    return _ChatModelProvider(
+        name="anthropic",
+        api_key_env="ANTHROPIC_API_KEY",
+        make_chat_model=_make_anthropic_chat_model,
+        default_model_env="ANTHROPIC_DEFAULT_MODEL",
+        default_model="claude-3-5-haiku-20241022",
+    )
 
 
 _PROVIDER_REGISTRY = {

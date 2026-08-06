@@ -12,7 +12,7 @@ This project is built using a modern, multi-agent architecture with the followin
 - **Vector Database**: ChromaDB (RAG and semantic search)
 - **Relational Database**: PostgreSQL (users, conversations, messages, approvals, audit logs, tool executions, prompt versions)
 - **Caching/State**: Redis (reserved for rate limiting / intermediate state)
-- **Observability**: LangSmith (Tracing and evaluations)
+- **Observability**: LangSmith (tracing, auto-enabled via the `LANGCHAIN_TRACING_V2` env var)
 
 **Deployment**: the whole stack (Postgres, Redis, ChromaDB, API, UI) ships as a **single Docker image**, managed by `supervisord`, so it can be deployed on one EC2 instance with one `docker run`. See [Deployment](#deployment-single-container-on-a-single-ec2-instance) below.
 
@@ -27,7 +27,6 @@ This project is built using a modern, multi-agent architecture with the followin
 - **Role-Based Access Control (RBAC)**: JWT-based auth distinguishing `admin` and `employee` roles, backed by real Postgres-stored users (bcrypt password hashes).
 - **Conversation Persistence**: Conversations and messages are persisted per user in Postgres; the graph's LangGraph thread id is stored on the conversation for HITL resume.
 - **Audit Logging**: Every login, approval decision, etc. is recorded to the `audit_logs` table, viewable in the admin dashboard.
-- **Model Context Protocol (MCP)**: Client scaffold for MCP server connections to expand agent capabilities.
 
 ## Prerequisites
 
@@ -88,8 +87,6 @@ This starts `api`, `streamlit`, `postgres`, `redis`, and `chromadb` as five cont
 │   ├── auth/         # JWT and RBAC handling
 │   ├── graph/         # LangGraph nodes, state, and builder (LLM-powered agents)
 │   ├── hitl/          # LLM-backed safety/risk classifier
-│   ├── mcp/           # Model Context Protocol integrations
-│   ├── observability/ # LangSmith setup and audit logging
 │   ├── prompts/        # Versioned YAML prompt templates, one dir per agent
 │   ├── providers/      # LLM provider abstractions + OpenAI/Anthropic + failover
 │   ├── rag/            # Document loaders, chunking, embeddings, ChromaDB
