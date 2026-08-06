@@ -98,7 +98,7 @@ def supervisor_node(state: AssistantState) -> Dict[str, Any]:
 
 def retrieval_agent_node(state: AssistantState) -> Dict[str, Any]:
     """Rewrites the query via LLM, then retrieves relevant documents."""
-    from src.rag.retrieval.chroma_store import retrieve_documents
+    from src.rag.retrieval.chroma_store import retrieve_documents, access_scope_filter
 
     messages = state.get("messages", [])
     if not messages:
@@ -116,7 +116,7 @@ def retrieval_agent_node(state: AssistantState) -> Dict[str, Any]:
     except Exception as e:
         logger.warning("Query rewrite failed, using raw message: %s", e)
 
-    results = retrieve_documents(query)
+    results = retrieve_documents(query, filter_metadata=access_scope_filter(state.get("user_role", "employee")))
     docs_formatted = [{"content": d.page_content, "metadata": d.metadata} for d in results]
     return {"retrieved_documents": docs_formatted}
 
@@ -228,8 +228,11 @@ def tool_execution_node(state: AssistantState) -> Dict[str, Any]:
     results = []
     for request in state.get("tool_requests", []):
         tool_name = request.get("tool_name")
+        arguments = dict(request.get("arguments", {}))
+        if tool_name == "search_knowledge_base":
+            arguments["user_role"] = state.get("user_role", "employee")
         try:
-            output = registry.execute(tool_name, **request.get("arguments", {}))
+            output = registry.execute(tool_name, **arguments)
             results.append({"tool_name": tool_name, "status": "success", "output": output})
         except Exception as e:
             logger.warning("Tool execution failed for %s: %s", tool_name, e)

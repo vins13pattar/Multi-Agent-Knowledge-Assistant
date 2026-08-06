@@ -30,3 +30,12 @@ def retrieve_documents(query: str, k: int = 4, filter_metadata: Dict[str, Any] =
     """Retrieves documents based on semantic similarity and optional metadata filters."""
     vector_store = get_vector_store()
     return vector_store.similarity_search(query, k=k, filter=filter_metadata)
+
+
+def access_scope_filter(user_role: str) -> Dict[str, Any] | None:
+    """Chroma metadata filter restricting retrieval to chunks the caller may see.
+
+    Admins see every chunk (no filter); everyone else only sees chunks from
+    documents ingested with access_scope="shared" (the default for uploads).
+    """
+    return None if user_role == "admin" else {"access_scope": "shared"}

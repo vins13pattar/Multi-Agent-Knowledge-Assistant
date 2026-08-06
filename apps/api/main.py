@@ -141,6 +141,7 @@ def get_conversation(conversation_id: str, db: Session = Depends(get_db), curren
 @app.post("/api/v1/documents/upload", tags=["Documents"])
 def upload_document(
     file: UploadFile = File(...),
+    access_scope: str = "shared",
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
@@ -149,6 +150,9 @@ def upload_document(
     from src.rag.retrieval.chroma_store import add_documents_to_store
     import hashlib
     from pathlib import Path
+
+    if access_scope not in ("shared", "restricted"):
+        raise HTTPException(status_code=400, detail="access_scope must be 'shared' or 'restricted'")
 
     upload_dir = "/tmp/knowledge_assistant_uploads"
     os.makedirs(upload_dir, exist_ok=True)
@@ -172,7 +176,8 @@ def upload_document(
         name=file.filename,
         content_hash=content_hash,
         status=DocumentStatus.ingesting,
-        uploaded_by=current_user["user_id"]
+        uploaded_by=current_user["user_id"],
+        access_scope=access_scope,
     )
     db.add(doc_record)
     db.commit()
@@ -180,6 +185,8 @@ def upload_document(
     try:
         documents = load_document(file_path)
         chunks = split_documents(documents)
+        for chunk in chunks:
+            chunk.metadata["access_scope"] = access_scope
         add_documents_to_store(chunks)
         doc_record.status = DocumentStatus.ingested
         doc_record.chunk_count = len(chunks)
@@ -204,9 +211,9 @@ def list_documents(db: Session = Depends(get_db), current_user: dict = Depends(g
 
 @app.get("/api/v1/retrieval/search", tags=["Retrieval"])
 def search_documents(query: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    from src.rag.retrieval.chroma_store import retrieve_documents
+    from src.rag.retrieval.chroma_store import retrieve_documents, access_scope_filter
     from src.rag.citations.formatter import format_citations
-    results = retrieve_documents(query)
+    results = retrieve_documents(query, filter_metadata=access_scope_filter(current_user["role"]))
     citations = format_citations(results)
     return {
         "query": query,
