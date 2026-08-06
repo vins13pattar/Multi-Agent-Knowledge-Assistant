@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Production / single-EC2-instance deployment: one container running
+# PostgreSQL, Redis, ChromaDB, the FastAPI API, and the Streamlit UI together
+# (see docker/Dockerfile + docker/supervisord.conf). Data persists in the
+# named volumes below across container restarts/upgrades.
+#
+# For a multi-container local dev setup with hot-reload, use:
+#   docker compose -f docker-compose.dev.yml up
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: knowledge_assistant
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - chroma_data:/data/chroma
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  chroma_data:

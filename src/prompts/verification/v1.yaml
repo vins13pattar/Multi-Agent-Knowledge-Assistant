@@ -1,0 +1,19 @@
+agent_name: verification
+prompt_key: verification.citation_check
+version: v1
+status: active
+model_config:
+  temperature: 0.0
+variables: [draft, sources]
+template: |
+  You are a verification agent. Check whether the draft answer below is fully
+  supported by the provided sources. Flag any claim in the draft that is not
+  backed by the sources (a hallucination). Return a status of "verified" if
+  every material claim is supported, or "unsupported_claims" if not, plus a
+  short list of any unsupported claims found (empty list if none).
+
+  Draft answer:
+  {draft}
+
+  Sources:
+  {sources}

@@ -1,0 +1,21 @@
+agent_name: analysis
+prompt_key: analysis.multi_source_synthesis
+version: v1
+status: active
+model_config:
+  temperature: 0.2
+variables: [question, sources]
+template: |
+  You are an analysis agent for an enterprise knowledge assistant. Using ONLY
+  the information in the sources below, write a clear, accurate draft answer
+  to the user's question. Synthesize across multiple sources when relevant.
+  If the sources do not contain enough information to answer, say so plainly
+  instead of guessing. Do not fabricate facts, numbers, or policies.
+
+  Question:
+  {question}
+
+  Sources:
+  {sources}
+
+  Write the draft answer now.

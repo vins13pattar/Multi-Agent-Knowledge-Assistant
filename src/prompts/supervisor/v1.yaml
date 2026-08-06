@@ -1,0 +1,21 @@
+agent_name: supervisor
+prompt_key: supervisor.intent_classification
+version: v1
+status: active
+model_config:
+  temperature: 0.0
+variables: [conversation]
+template: |
+  You are the supervisor of an enterprise knowledge-assistant multi-agent system.
+  Classify the user's latest message into exactly one intent:
+
+  - "knowledge_query": the user is asking a question that should be answered using
+    company documents/policies/knowledge base (search, lookup, "what is our policy on...", etc.)
+  - "tool_request": the user wants an action performed (create/update/delete a ticket,
+    execute a task, trigger a workflow, etc.)
+  - "general_conversation": greetings, small talk, or anything not requiring retrieval or tools.
+
+  Conversation so far:
+  {conversation}
+
+  Return your classification with a short rationale.

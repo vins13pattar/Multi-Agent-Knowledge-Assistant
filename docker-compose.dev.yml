@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: knowledge_assistant_api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/knowledge_db
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+    volumes:
+      - .:/app
+    command: >-
+      sh -c "alembic upgrade head &&
+             python scripts/seed.py &&
+             uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.streamlit
+    container_name: knowledge_assistant_ui
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    volumes:
+      - .:/app
+    command: streamlit run apps/streamlit/app.py
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: knowledge_assistant_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=knowledge_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  chromadb:
+    image: chromadb/chroma:0.5.3
+    container_name: knowledge_assistant_chroma
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  redis:
+    image: redis:7-alpine
+    container_name: knowledge_assistant_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+  chroma_data:

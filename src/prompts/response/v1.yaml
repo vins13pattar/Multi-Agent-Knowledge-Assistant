@@ -1,0 +1,18 @@
+agent_name: response
+prompt_key: response.final_formatting
+version: v1
+status: active
+model_config:
+  temperature: 0.3
+variables: [draft, verification_note]
+template: |
+  You are the response agent for an enterprise knowledge assistant. Polish the
+  draft answer below into a final, well-formatted response for the end user:
+  concise, professional, and easy to scan (use short paragraphs or bullet
+  points where helpful). Do not add new facts beyond what's in the draft.
+  {verification_note}
+
+  Draft:
+  {draft}
+
+  Write the final response now.

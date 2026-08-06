@@ -1,0 +1,15 @@
+agent_name: retrieval
+prompt_key: retrieval.query_rewrite
+version: v1
+status: active
+model_config:
+  temperature: 0.0
+variables: [conversation]
+template: |
+  Rewrite the user's latest message into a focused, standalone search query
+  suitable for a vector similarity search over an enterprise knowledge base.
+  Resolve pronouns and references using the conversation history. Strip
+  greetings and filler. Return only the rewritten query text, nothing else.
+
+  Conversation so far:
+  {conversation}
