@@ -1,17 +1,18 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import shutil, os, uuid, json
+import shutil, os, uuid, json, time
 from datetime import datetime
+from typing import Dict
 
 from src.database.session import get_db
 from src.database.models import (
     User, UserRole, Conversation, Message, SenderType,
     Document, DocumentStatus, ApprovalRequest, ApprovalStatus,
     AuditLog, KnowledgeSource, KnowledgeSourceType, Feedback,
-    ConversationStatus, RiskLevel
+    ConversationStatus, RiskLevel, RagEvalMetric, RagEvalRun
 )
 from src.auth.jwt_handler import sign_jwt, TokenResponse, get_password_hash, verify_password
 from apps.api.dependencies import get_current_user, require_admin, require_employee
@@ -166,10 +167,19 @@ def upload_document(
     with open(file_path, "rb") as f:
         content_hash = hashlib.sha256(f.read()).hexdigest()
 
-    # Check for duplicate
-    existing = db.query(Document).filter(Document.content_hash == content_hash).first()
+    # Check for duplicate — only successfully-ingested documents count. A prior
+    # failed attempt must not permanently block re-upload of the same content.
+    existing = db.query(Document).filter(
+        Document.content_hash == content_hash,
+        Document.status != DocumentStatus.failed,
+    ).first()
     if existing:
         return {"status": "duplicate", "message": f"Document already ingested as '{existing.name}'"}
+
+    db.query(Document).filter(
+        Document.content_hash == content_hash,
+        Document.status == DocumentStatus.failed,
+    ).delete()
 
     doc_record = Document(
         name=file.filename,
@@ -186,6 +196,11 @@ def upload_document(
         chunks = split_documents(documents)
         for chunk in chunks:
             chunk.metadata["access_scope"] = access_scope
+            # Loaders set "source" to the on-disk temp path (a throwaway UUID
+            # filename); overwrite with the original filename so citations
+            # shown to users, and anything matching on source downstream
+            # (e.g. the eval harness), are human-readable.
+            chunk.metadata["source"] = file.filename
         add_documents_to_store(chunks)
         doc_record.status = DocumentStatus.ingested
         doc_record.chunk_count = len(chunks)
@@ -252,10 +267,21 @@ def _run_chat_graph(convo: Conversation, request: ChatRequest, current_user: dic
 
     yield _sse("start", {"conversation_id": str(convo.id)})
 
-    try:
-        for step in assistant_graph.stream(initial_state, config=config):
+    turn_started_at = time.monotonic()
+    node_latencies_ms: Dict[str, int] = {}
+
+    def _timed_stream(input_state):
+        node_started_at = time.monotonic()
+        for step in assistant_graph.stream(input_state, config=config):
+            now = time.monotonic()
             for node_name in step.keys():
-                yield _sse("node", {"node": node_name})
+                node_latencies_ms[node_name] = round((now - node_started_at) * 1000)
+                yield node_name
+            node_started_at = now
+
+    try:
+        for node_name in _timed_stream(initial_state):
+            yield _sse("node", {"node": node_name})
 
         snapshot = assistant_graph.get_state(config)
         state_values = snapshot.values
@@ -268,9 +294,8 @@ def _run_chat_graph(convo: Conversation, request: ChatRequest, current_user: dic
             # can never silently skip HITL review.
             risk = state_values.get("risk_level") or "critical"
             if risk == "low":
-                for step in assistant_graph.stream(None, config=config):
-                    for node_name in step.keys():
-                        yield _sse("node", {"node": node_name})
+                for node_name in _timed_stream(None):
+                    yield _sse("node", {"node": node_name})
                 state_values = assistant_graph.get_state(config).values
             else:
                 tool_requests = state_values.get("tool_requests", [])
@@ -316,6 +341,25 @@ def _run_chat_graph(convo: Conversation, request: ChatRequest, current_user: dic
         db.add(assistant_msg)
         if convo.title == request.message[:60]:
             convo.updated_at = datetime.utcnow()
+        db.flush()
+
+        # Only knowledge_query turns go through retrieval/verification — tool
+        # requests and general conversation have nothing meaningful to score.
+        if state_values.get("user_intent") == "knowledge_query":
+            retrieved = state_values.get("retrieved_documents", [])
+            verification = state_values.get("verification_result") or {}
+            db.add(RagEvalMetric(
+                message_id=assistant_msg.id,
+                conversation_id=convo.id,
+                user_intent=state_values.get("user_intent"),
+                retrieved_count=len(retrieved),
+                retrieval_empty=len(retrieved) == 0,
+                faithfulness_status=verification.get("status"),
+                unsupported_claims=verification.get("unsupported_claims", []),
+                citation_count=len(citations),
+                node_latencies_ms=node_latencies_ms,
+                total_latency_ms=round((time.monotonic() - turn_started_at) * 1000),
+            ))
         db.commit()
 
         yield _sse("done", {
@@ -485,3 +529,133 @@ def get_audit_logs(limit: int = 50, db: Session = Depends(get_db), current_user:
         "resource_id": l.resource_id,
         "created_at": str(l.created_at)
     } for l in logs]
+
+# ---------------------------------------------------------------------------
+# RAG Evals
+# ---------------------------------------------------------------------------
+
+@app.get("/api/v1/evals/metrics", tags=["Evals"])
+def get_eval_metrics(days: int = 7, limit: int = 200, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    """Aggregated online RAG metrics — one row per knowledge_query chat turn,
+    captured in the chat stream handler (see RagEvalMetric)."""
+    from datetime import timedelta
+    since = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(RagEvalMetric)
+        .filter(RagEvalMetric.created_at >= since)
+        .order_by(RagEvalMetric.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    turn_count = len(rows)
+    if turn_count == 0:
+        return {
+            "window_days": days,
+            "turn_count": 0,
+            "retrieval_empty_rate": None,
+            "faithfulness_verified_rate": None,
+            "avg_citation_count": None,
+            "avg_total_latency_ms": None,
+            "avg_node_latencies_ms": {},
+            "feedback_by_faithfulness": {},
+            "recent": [],
+        }
+
+    empty_count = sum(1 for r in rows if r.retrieval_empty)
+    verified_count = sum(1 for r in rows if r.faithfulness_status == "verified")
+    scored_count = sum(1 for r in rows if r.faithfulness_status is not None)
+    total_latencies = [r.total_latency_ms for r in rows if r.total_latency_ms is not None]
+
+    node_totals: Dict[str, list] = {}
+    for r in rows:
+        for node, ms in (r.node_latencies_ms or {}).items():
+            node_totals.setdefault(node, []).append(ms)
+    avg_node_latencies = {node: round(sum(vals) / len(vals)) for node, vals in node_totals.items()}
+
+    message_ids = [r.message_id for r in rows]
+    feedback_rows = db.query(Feedback).filter(Feedback.message_id.in_(message_ids)).all() if message_ids else []
+    feedback_by_message = {f.message_id: f.rating for f in feedback_rows if f.rating is not None}
+    ratings_by_status: Dict[str, list] = {}
+    for r in rows:
+        rating = feedback_by_message.get(r.message_id)
+        if rating is not None and r.faithfulness_status:
+            ratings_by_status.setdefault(r.faithfulness_status, []).append(rating)
+    feedback_by_faithfulness = {status: round(sum(vals) / len(vals), 2) for status, vals in ratings_by_status.items()}
+
+    return {
+        "window_days": days,
+        "turn_count": turn_count,
+        "retrieval_empty_rate": round(empty_count / turn_count, 3),
+        "faithfulness_verified_rate": round(verified_count / scored_count, 3) if scored_count else None,
+        "avg_citation_count": round(sum(r.citation_count or 0 for r in rows) / turn_count, 2),
+        "avg_total_latency_ms": round(sum(total_latencies) / len(total_latencies)) if total_latencies else None,
+        "avg_node_latencies_ms": avg_node_latencies,
+        "feedback_by_faithfulness": feedback_by_faithfulness,
+        "recent": [{
+            "created_at": str(r.created_at),
+            "retrieved_count": r.retrieved_count,
+            "faithfulness_status": r.faithfulness_status,
+            "citation_count": r.citation_count,
+            "total_latency_ms": r.total_latency_ms,
+        } for r in rows],
+    }
+
+
+@app.get("/api/v1/evals/runs", tags=["Evals"])
+def list_eval_runs(limit: int = 20, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    runs = db.query(RagEvalRun).order_by(RagEvalRun.started_at.desc()).limit(limit).all()
+    return [{
+        "id": str(r.id),
+        "dataset_name": r.dataset_name,
+        "status": r.status.value,
+        "question_count": r.question_count,
+        "avg_hit_rate": r.avg_hit_rate,
+        "avg_mrr": r.avg_mrr,
+        "avg_faithfulness": r.avg_faithfulness,
+        "avg_answer_relevancy": r.avg_answer_relevancy,
+        "started_at": str(r.started_at),
+        "finished_at": str(r.finished_at) if r.finished_at else None,
+    } for r in runs]
+
+
+@app.get("/api/v1/evals/runs/{run_id}", tags=["Evals"])
+def get_eval_run(run_id: str, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    run = db.query(RagEvalRun).filter(RagEvalRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Eval run not found")
+    return {
+        "id": str(run.id),
+        "dataset_name": run.dataset_name,
+        "status": run.status.value,
+        "question_count": run.question_count,
+        "avg_hit_rate": run.avg_hit_rate,
+        "avg_mrr": run.avg_mrr,
+        "avg_faithfulness": run.avg_faithfulness,
+        "avg_answer_relevancy": run.avg_answer_relevancy,
+        "error": run.error,
+        "started_at": str(run.started_at),
+        "finished_at": str(run.finished_at) if run.finished_at else None,
+        "results": [{
+            "question": res.question,
+            "expected_source": res.expected_source,
+            "retrieved_sources": res.retrieved_sources,
+            "hit": res.hit,
+            "reciprocal_rank": res.reciprocal_rank,
+            "faithfulness_score": res.faithfulness_score,
+            "answer_relevancy_score": res.answer_relevancy_score,
+            "generated_answer": res.generated_answer,
+        } for res in run.results],
+    }
+
+
+@app.post("/api/v1/evals/run", tags=["Evals"])
+def trigger_eval_run(background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: dict = Depends(require_admin)):
+    """Kicks off an offline eval run against the golden dataset in the
+    background (it makes several LLM calls per question, so it's too slow to
+    run inline) and returns the run id immediately so the dashboard can poll
+    GET /api/v1/evals/runs/{run_id} for status."""
+    from apps.api.eval_runner import create_run_row, execute_eval_run
+    run_id = create_run_row(db, triggered_by=current_user["user_id"])
+    background_tasks.add_task(execute_eval_run, run_id)
+    return {"status": "started", "run_id": run_id}

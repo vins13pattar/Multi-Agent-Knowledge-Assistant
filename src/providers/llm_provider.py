@@ -60,6 +60,12 @@ class _ChatModelProvider:
         if response_schema:
             structured_llm = llm.with_structured_output(response_schema)
             result = structured_llm.invoke(messages)
+            # Depending on the installed langchain/pydantic version combo,
+            # with_structured_output() can return a plain dict instead of a
+            # response_schema instance — coerce so callers can always rely on
+            # attribute access (result.field) regardless of version.
+            if isinstance(result, dict):
+                result = response_schema(**result)
             return LLMResponse(content="", structured_output=result, provider=self.name, model=chosen_model)
 
         result = llm.invoke(messages)

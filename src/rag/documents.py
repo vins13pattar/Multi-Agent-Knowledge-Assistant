@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -13,9 +13,11 @@ def load_document(file_path: str) -> List[Document]:
 
     if ext == '.pdf':
         loader = PyPDFLoader(file_path)
-    elif ext in ['.md', '.markdown']:
-        loader = UnstructuredMarkdownLoader(file_path)
-    elif ext == '.txt':
+    elif ext in ['.md', '.markdown', '.txt']:
+        # Markdown is loaded as raw text rather than via UnstructuredMarkdownLoader:
+        # the chunker/embedder doesn't need semantic element parsing, and
+        # unstructured's markdown partitioner downloads NLTK data at runtime,
+        # which fails in network-restricted environments.
         loader = TextLoader(file_path)
     else:
         raise ValueError(f"Unsupported file extension: {ext}")

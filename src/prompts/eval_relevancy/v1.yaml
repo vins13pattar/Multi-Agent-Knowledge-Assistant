@@ -1,0 +1,21 @@
+agent_name: eval_relevancy
+prompt_key: eval_relevancy.answer_relevancy_score
+version: v1
+status: active
+model_config:
+  temperature: 0.0
+variables: [question, answer]
+template: |
+  You are grading a RAG system's answer for relevancy to the question asked.
+  Score how directly the answer addresses the question, from 0.0 to 1.0:
+  - 1.0: the answer directly and completely addresses the question.
+  - 0.5: the answer is partially relevant or incomplete.
+  - 0.0: the answer does not address the question at all.
+
+  Question:
+  {question}
+
+  Answer:
+  {answer}
+
+  Return a numeric score and a one-sentence rationale.

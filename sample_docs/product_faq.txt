@@ -1,0 +1,46 @@
+PRODUCT FAQ - MULTI-AGENT KNOWLEDGE ASSISTANT
+Document Owner: Product Team
+Effective Date: April 10, 2026
+Access Scope (suggested): shared
+
+Q: What is the Multi-Agent Knowledge Assistant?
+A: It is an internal AI platform that lets employees ask natural-language
+questions and get answers grounded in company documents, execute approved
+business operations (like creating support tickets), and complete multi-step
+tasks through a chat interface.
+
+Q: What file types can I upload to the knowledge base?
+A: PDF, Markdown (.md), and plain text (.txt) files are currently supported.
+Uploading other file types will return a 400 error indicating an unsupported
+extension.
+
+Q: Who can see the documents I upload?
+A: When you upload a document you choose an access scope: "shared" (visible
+to all employees) or "restricted" (visible only to admins). Choose
+"restricted" for anything containing financial data, security details, or
+other sensitive internal information.
+
+Q: How does the assistant decide when to ask a human for approval?
+A: A Safety agent classifies the risk of any tool call the assistant wants to
+make. Anything above "low" risk pauses execution and routes to the admin
+approval queue before the action is carried out.
+
+Q: What happens if the primary AI provider is down?
+A: The platform automatically fails over from OpenAI to Anthropic (or vice
+versa, depending on configuration) without requiring any action from the
+user. You may notice a brief delay during failover.
+
+Q: Can I ask about a document right after uploading it?
+A: Yes, but allow a few seconds for ingestion (chunking + embedding) to
+complete. The document list shows a status of "ingesting" until it becomes
+"ingested" and is searchable.
+
+Q: How do I report an incorrect or hallucinated answer?
+A: Every response includes citations. If an answer looks wrong, check the
+cited source first. If the citation doesn't support the claim, report it via
+the feedback button so the Verification agent's behavior can be reviewed.
+
+Q: Is my conversation history saved?
+A: Yes. Conversations and messages are stored so you can return to them
+later. Admins can see conversation metadata for support and audit purposes
+but not raw message content unless explicitly investigating an incident.

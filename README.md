@@ -27,6 +27,9 @@ This project is built using a modern, multi-agent architecture with the followin
 - **Role-Based Access Control (RBAC)**: JWT-based auth distinguishing `admin` and `employee` roles, backed by real Postgres-stored users (bcrypt password hashes).
 - **Conversation Persistence**: Conversations and messages are persisted per user in Postgres; the graph's LangGraph thread id is stored on the conversation for HITL resume.
 - **Audit Logging**: Every login, approval decision, etc. is recorded to the `audit_logs` table, viewable in the admin dashboard.
+- **RAG Evaluation**: Two complementary layers, both surfaced in the admin dashboard's "RAG Evals" tab (`src/rag/eval.py`, `apps/api/eval_runner.py`):
+  - *Online metrics* — every `knowledge_query` chat turn is scored inline (retrieval count, groundedness/faithfulness status, citation count, per-node latency) and written to `rag_eval_metrics`, at no extra LLM-call cost.
+  - *Offline evaluation* — an admin-triggered batch run (`POST /api/v1/evals/run`, or `python scripts/run_rag_eval.py`) scores a golden question set (`src/rag/eval.py`, backed by `sample_docs/`) for retrieval hit-rate/MRR plus LLM-judged faithfulness and answer relevancy, persisted to `rag_eval_runs` / `rag_eval_run_results`.
 
 ## Prerequisites
 
@@ -56,11 +59,17 @@ On first boot, the `api` container runs `alembic upgrade head` and `python scrip
 
 To upgrade: `git pull`, then `docker compose up --build -d` (volumes are preserved, migrations run automatically on the next boot).
 
+## Trying It Out
+
+`sample_docs/` has six fictional documents (PDF/Markdown/TXT, mixed `shared`/`restricted` access scopes) plus a matching golden question set — see [`sample_docs/README.md`](sample_docs/README.md) for the upload commands and suggested test queries. They're what the offline RAG eval (`src/rag/eval.py`) scores against, and a good way to see ingestion, RBAC-scoped retrieval, and HITL all working without writing your own content first.
+
 ## Project Structure
 
 ```
 ├── apps/
-│   ├── api/          # FastAPI backend service
+│   ├── api/
+│   │   ├── main.py         # FastAPI backend service (routes, SSE chat stream)
+│   │   └── eval_runner.py  # Background-task runner for offline RAG eval
 │   └── streamlit/    # Streamlit frontend (chat + admin dashboard)
 ├── docker/           # Dockerfile.api, Dockerfile.streamlit
 ├── src/
@@ -69,8 +78,12 @@ To upgrade: `git pull`, then `docker compose up --build -d` (volumes are preserv
 │   ├── hitl/          # LLM-backed safety/risk classifier
 │   ├── prompts/        # Versioned YAML prompt templates, one dir per agent
 │   ├── providers/      # LLM provider abstractions + OpenAI/Anthropic + failover
-│   ├── rag/            # Document loaders, chunking, embeddings, ChromaDB
+│   ├── rag/            # Document loaders, chunking, embeddings, ChromaDB, eval.py (golden-set scoring)
 │   └── tools/           # Tool registry, native tools, executor, circuit breaker, retry
+├── scripts/
+│   ├── seed.py             # Seeds demo admin/employee accounts
+│   └── run_rag_eval.py     # CLI to trigger an offline RAG eval run outside the dashboard
+├── sample_docs/       # Fictional documents + golden question set for exercising RAG end-to-end
 ├── docker-compose.yml      # api, streamlit, postgres, redis, chromadb containers
 └── requirements.txt
 ```

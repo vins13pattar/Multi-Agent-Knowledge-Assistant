@@ -1,0 +1,59 @@
+Q3 2026 FINANCIAL SUMMARY (INTERNAL)
+Document Owner: Finance
+Effective Date: October 5, 2026
+Access Scope (suggested): restricted
+
+OVERVIEW
+
+This report summarizes company financial performance for the third quarter
+of fiscal year 2026 (July 1 - September 30). Figures are unaudited and
+subject to change following the year-end audit.
+
+REVENUE
+
+Total revenue for Q3 2026 was $18.4M, up 22% year-over-year from $15.1M in
+Q3 2025 and up 6% quarter-over-quarter from $17.3M in Q2 2026.
+
+- Subscription revenue: $14.9M (81% of total)
+- Professional services revenue: $2.6M (14% of total)
+- Usage-based / overage revenue: $0.9M (5% of total)
+
+Net revenue retention (NRR) for the trailing twelve months was 118%,
+driven primarily by expansion in the Enterprise tier.
+
+EXPENSES
+
+Total operating expenses were $16.2M, resulting in an operating margin of
+12%, compared to 7% in Q2 2026.
+
+- Cost of revenue (hosting, support): $4.1M
+- Sales and marketing: $6.0M
+- Research and development: $4.8M
+- General and administrative: $1.3M
+
+CASH POSITION
+
+Cash and cash equivalents at the end of Q3 2026 were $42.7M, with a burn
+rate of approximately $0.6M per month, giving a runway estimate of
+approximately 71 months at current spend levels absent additional revenue
+growth.
+
+HEADCOUNT
+
+Total headcount at quarter end was 214, up from 198 at the end of Q2 2026.
+Engineering represented 38% of headcount, Sales and Marketing 26%, Customer
+Success 18%, and G&A 18%.
+
+RISKS AND WATCH ITEMS
+
+- Customer concentration: the top 5 customers represent 24% of ARR, up from
+  19% a year ago. Loss of any single top-5 account would materially affect
+  quarterly results.
+- Two enterprise renewals totaling $1.2M ARR are under active negotiation
+  for Q4 and are not guaranteed to renew at current terms.
+
+DISTRIBUTION
+
+This document contains non-public financial information and is restricted
+to Finance, Executive Leadership, and Board members. Do not forward outside
+these groups without Finance approval.

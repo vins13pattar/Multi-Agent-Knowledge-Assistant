@@ -165,8 +165,8 @@ else:
             st.rerun()
 
     if st.session_state.role == "admin":
-        tab_chat, tab_approvals, tab_docs, tab_audit = st.tabs(
-            ["💬 Chat", "✅ Approval Queue", "📄 Document Status", "🧾 Audit Log"]
+        tab_chat, tab_approvals, tab_docs, tab_audit, tab_evals = st.tabs(
+            ["💬 Chat", "✅ Approval Queue", "📄 Document Status", "🧾 Audit Log", "📊 RAG Evals"]
         )
     else:
         (tab_chat,) = st.tabs(["💬 Chat"])
@@ -268,3 +268,92 @@ else:
                 st.info("No audit log entries yet.")
             else:
                 st.dataframe(logs, use_container_width=True)
+
+        with tab_evals:
+            st.title("📊 RAG Evals")
+            if st.button("🔄 Refresh", key="refresh_evals"):
+                st.rerun()
+
+            st.subheader("Online metrics")
+            st.caption("Captured automatically for every knowledge-query chat turn — no extra LLM calls beyond what the turn already makes.")
+            days = st.slider("Window (days)", 1, 30, 7, key="evals_window_days")
+            metrics = api_get("/api/v1/evals/metrics", params={"days": days}) or {}
+
+            if not metrics.get("turn_count"):
+                st.info("No knowledge-query chat turns recorded yet in this window.")
+            else:
+                cols = st.columns(5)
+                cols[0].metric("Chat turns", metrics["turn_count"])
+                cols[1].metric("Retrieval-empty rate", f"{metrics['retrieval_empty_rate']:.0%}")
+                verified_rate = metrics.get("faithfulness_verified_rate")
+                cols[2].metric("Faithfulness (verified)", f"{verified_rate:.0%}" if verified_rate is not None else "—")
+                cols[3].metric("Avg citations", metrics["avg_citation_count"])
+                avg_latency = metrics.get("avg_total_latency_ms")
+                cols[4].metric("Avg latency", f"{avg_latency / 1000:.1f}s" if avg_latency else "—")
+
+                if metrics.get("avg_node_latencies_ms"):
+                    st.caption("Avg latency by graph node (ms)")
+                    st.bar_chart(metrics["avg_node_latencies_ms"])
+
+                if metrics.get("feedback_by_faithfulness"):
+                    st.caption("Avg user rating by faithfulness status")
+                    st.bar_chart(metrics["feedback_by_faithfulness"])
+
+                recent = metrics.get("recent", [])
+                if recent:
+                    st.caption("Recent turns (most recent first)")
+                    st.dataframe(recent, use_container_width=True)
+
+            st.divider()
+            st.subheader("Offline evaluation runs")
+            st.caption("Batch-scores the golden question set (sample_docs/) for retrieval hit-rate/MRR and LLM-judged faithfulness/answer relevancy. Runs in the background — refresh to see status update.")
+
+            if st.button("▶️ Run Eval", key="trigger_eval_run"):
+                resp = api_post("/api/v1/evals/run")
+                if resp is not None and resp.status_code == 200:
+                    st.success(f"Eval run started: `{resp.json()['run_id']}`")
+                elif resp is not None:
+                    st.error(resp.text)
+
+            runs = api_get("/api/v1/evals/runs") or []
+            if not runs:
+                st.info("No eval runs yet.")
+            else:
+                status_icon = {"completed": "✅", "running": "⏳", "failed": "❌"}
+                run_labels = {
+                    r["id"]: f"{status_icon.get(r['status'], '•')} {r['started_at']} — {r['status']}"
+                    for r in runs
+                }
+                st.dataframe([{
+                    "status": r["status"],
+                    "questions": r["question_count"],
+                    "hit_rate": r["avg_hit_rate"],
+                    "mrr": r["avg_mrr"],
+                    "faithfulness": r["avg_faithfulness"],
+                    "answer_relevancy": r["avg_answer_relevancy"],
+                    "started_at": r["started_at"],
+                } for r in runs], use_container_width=True)
+
+                selected_id = st.selectbox(
+                    "View run detail",
+                    options=list(run_labels.keys()),
+                    format_func=lambda rid: run_labels[rid],
+                    key="eval_run_select",
+                )
+                if selected_id:
+                    detail = api_get(f"/api/v1/evals/runs/{selected_id}")
+                    if detail:
+                        if detail["status"] == "failed":
+                            st.error(detail.get("error") or "Run failed.")
+                        for res in detail.get("results", []):
+                            hit_icon = "✅" if res["hit"] else "❌"
+                            with st.container(border=True):
+                                st.markdown(f"**Q:** {res['question']}")
+                                st.caption(f"Expected source: `{res['expected_source']}` — retrieval hit: {hit_icon} (MRR {res['reciprocal_rank']:.2f})")
+                                if res["generated_answer"]:
+                                    st.markdown(res["generated_answer"])
+                                score_cols = st.columns(2)
+                                if res["faithfulness_score"] is not None:
+                                    score_cols[0].caption(f"Faithfulness: {res['faithfulness_score']:.2f}")
+                                if res["answer_relevancy_score"] is not None:
+                                    score_cols[1].caption(f"Answer relevancy: {res['answer_relevancy_score']:.2f}")

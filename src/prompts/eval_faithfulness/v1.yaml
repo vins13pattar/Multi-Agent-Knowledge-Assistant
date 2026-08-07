@@ -1,0 +1,21 @@
+agent_name: eval_faithfulness
+prompt_key: eval_faithfulness.groundedness_score
+version: v1
+status: active
+model_config:
+  temperature: 0.0
+variables: [answer, sources]
+template: |
+  You are grading a RAG system's answer for faithfulness to its sources. Score
+  how well the answer is grounded in the sources below, from 0.0 to 1.0:
+  - 1.0: every claim in the answer is directly supported by the sources.
+  - 0.5: the answer is partially supported, with some unsupported claims.
+  - 0.0: the answer is unsupported or contradicts the sources.
+
+  Answer:
+  {answer}
+
+  Sources:
+  {sources}
+
+  Return a numeric score and a one-sentence rationale.
