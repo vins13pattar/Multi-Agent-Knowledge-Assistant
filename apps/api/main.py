@@ -145,9 +145,8 @@ def upload_document(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    from src.rag.loaders.document_loader import load_document
-    from src.rag.chunking.text_splitter import split_documents
-    from src.rag.retrieval.chroma_store import add_documents_to_store
+    from src.rag.documents import load_document, split_documents
+    from src.rag.store import add_documents_to_store
     import hashlib
     from pathlib import Path
 
@@ -211,8 +210,7 @@ def list_documents(db: Session = Depends(get_db), current_user: dict = Depends(g
 
 @app.get("/api/v1/retrieval/search", tags=["Retrieval"])
 def search_documents(query: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    from src.rag.retrieval.chroma_store import retrieve_documents, access_scope_filter
-    from src.rag.citations.formatter import format_citations
+    from src.rag.store import retrieve_documents, access_scope_filter, format_citations
     results = retrieve_documents(query, filter_metadata=access_scope_filter(current_user["role"]))
     citations = format_citations(results)
     return {

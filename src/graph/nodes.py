@@ -98,7 +98,7 @@ def supervisor_node(state: AssistantState) -> Dict[str, Any]:
 
 def retrieval_agent_node(state: AssistantState) -> Dict[str, Any]:
     """Rewrites the query via LLM, then retrieves relevant documents."""
-    from src.rag.retrieval.chroma_store import retrieve_documents, access_scope_filter
+    from src.rag.store import retrieve_documents, access_scope_filter
 
     messages = state.get("messages", [])
     if not messages:
@@ -255,7 +255,7 @@ def response_agent_node(state: AssistantState) -> Dict[str, Any]:
 
     citations: List[str] = []
     if retrieved:
-        from src.rag.citations.formatter import format_citations
+        from src.rag.store import format_citations
         from langchain_core.documents import Document
         docs = [Document(page_content=d["content"], metadata=d["metadata"]) for d in retrieved]
         citations.append(format_citations(docs))
