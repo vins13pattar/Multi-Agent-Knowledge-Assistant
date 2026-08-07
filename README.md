@@ -49,7 +49,10 @@ docker compose up --build
 
 On first boot, the `api` container runs `alembic upgrade head` and `python scripts/seed.py` before starting — no manual DB setup needed. Code is mounted live (`.:/app`) and the API runs with `--reload`, so this is convenient for iterating locally. Data persists in the `postgres_data` / `chroma_data` named volumes across restarts.
 
-**Deploying this to a server** (e.g. a single EC2 instance): only open inbound `8000` (API) and `8501` (Streamlit) in your security group — put a reverse proxy / TLS in front of these for anything beyond a demo. For a hardened production build, drop the `volumes: .:/app` mounts and the `--reload` flag in `docker-compose.yml`'s `api` service (they exist for local hot-reload only) and bake the code into the image instead.
+**Deploying this to a server** (e.g. a single EC2 instance):
+- Only open inbound `8000` (API) and `8501` (Streamlit) in your security group — Postgres, ChromaDB, and Redis aren't published to the host at all (they're reachable only over the internal compose network), and no reverse proxy / TLS is set up, so put one in front of these for anything beyond a demo.
+- Set `ENVIRONMENT=production` and a real `POSTGRES_PASSWORD` in `.env` — this makes `scripts/seed.py` refuse to create the demo admin/employee accounts (create your first admin via `POST /api/v1/users` instead) and stops the Postgres container from using its default password.
+- For a hardened build, drop the `volumes: .:/app` mounts and the `--reload` flag in `docker-compose.yml`'s `api` service (they exist for local hot-reload only) and bake the code into the image instead.
 
 To upgrade: `git pull`, then `docker compose up --build -d` (volumes are preserved, migrations run automatically on the next boot).
 

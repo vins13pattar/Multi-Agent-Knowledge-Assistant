@@ -16,7 +16,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/knowledge_db
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/knowledge_db
       - REDIS_URL=redis://redis:6379/0
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
@@ -50,31 +50,37 @@ services:
     container_name: knowledge_assistant_postgres
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=knowledge_db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
-    ports:
-      - "5432:5432"
+    # No host port mapping — other containers reach this over the compose
+    # network at postgres:5432. Uncomment (bound to loopback only) to debug
+    # with a host client; never publish this on a shared/deployed host.
+    # ports:
+    #   - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   chromadb:
     image: chromadb/chroma:0.5.3
     container_name: knowledge_assistant_chroma
-    ports:
-      - "8001:8000"
+    # No host port mapping — reached internally at chromadb:8000.
+    # ports:
+    #   - "127.0.0.1:8001:8000"
     volumes:
       - chroma_data:/chroma/chroma
 
   redis:
     image: redis:7-alpine
     container_name: knowledge_assistant_redis
-    ports:
-      - "6379:6379"
+    # No host port mapping — reached internally at redis:6379. Not currently
+    # used by the application (reserved for future rate limiting / state).
+    # ports:
+    #   - "127.0.0.1:6379:6379"
 
 volumes:
   postgres_data:
