@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deployment field guide — Multi-Agent Knowledge Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=Fragment+Mono&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.min.js" integrity="sha384-zkWMJO4sgpPUzyuOgDx8HB/K55glbAwajEpk1Go2NWRuPkPA/wIhoEJTuSkmOYrV" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #0c100e;
+      --paper: #141a16;
+      --ink: #e6e1d4;
+      --muted: #9aa394;
+      --line: #2a332d;
+      --heat: #e85d04;
+      --heat-dim: #9a3d08;
+      --azure: #4a90b8;
+      --gcp: #d4a017;
+      --ok: #7cb07a;
+      --warn: #d4a017;
+      --code-bg: #0a0d0b;
+      --rail: 4px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(232, 93, 4, 0.12), transparent),
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: auto, 48px 48px, 48px 48px;
+      background-position: 0 0, 0 0, 0 0;
+    }
+
+    body::before {
+      content: "";
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 1.5rem 6rem;
+    }
+
+    header.hero {
+      padding: 3.5rem 0 2rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .kicker {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--heat);
+      margin: 0 0 0.75rem;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: "Big Shoulders Display", Impact, sans-serif;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 0.95;
+      margin: 0 0 0.6em;
+    }
+
+    h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); max-width: 14ch; }
+    h2 { font-size: 2.2rem; margin-top: 0; }
+    h3 { font-size: 1.55rem; }
+    h4 { font-size: 1.2rem; letter-spacing: 0.04em; }
+
+    .lede {
+      font-size: 1.2rem;
+      max-width: 42em;
+      color: var(--muted);
+    }
+
+    .lede strong { color: var(--ink); font-weight: 600; }
+
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(12, 16, 14, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      margin: 0 -1.5rem;
+      padding: 0.65rem 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
+    }
+
+    nav.toc a {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+      padding-bottom: 0.15rem;
+    }
+
+    nav.toc a:hover, nav.toc a:focus { color: var(--ink); border-color: var(--heat); }
+
+    section {
+      margin-top: 3.5rem;
+      padding-left: 1.1rem;
+      border-left: var(--rail) solid var(--heat);
+    }
+
+    section.azure { border-left-color: var(--azure); }
+    section.gcp { border-left-color: var(--gcp); }
+    section.neutral { border-left-color: var(--ok); }
+
+    .meta {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    p { margin: 0 0 1rem; }
+    ul, ol { margin: 0 0 1.2rem; padding-left: 1.3rem; }
+    li { margin-bottom: 0.35rem; }
+    a { color: var(--heat); }
+
+    .callout {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 1rem 1.15rem;
+      margin: 1.25rem 0;
+    }
+
+    .callout.warn { border-color: var(--heat-dim); }
+    .callout.ok { border-color: #2f4a32; }
+    .callout .label {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--heat);
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+
+    .diagram {
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      padding: 1rem;
+      margin: 1.25rem 0 1.75rem;
+      overflow-x: auto;
+    }
+
+    .diagram figcaption {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    pre.mermaid { margin: 0; background: transparent; }
+
+    .code-wrap {
+      position: relative;
+      margin: 1rem 0 1.4rem;
+    }
+
+    .code-wrap button.copy {
+      position: absolute;
+      top: 0.45rem;
+      right: 0.45rem;
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+    }
+
+    .code-wrap button.copy:hover { border-color: var(--heat); }
+
+    pre.code {
+      margin: 0;
+      background: var(--code-bg);
+      border: 1px solid var(--line);
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: #d7d2c4;
+      white-space: pre;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 1rem 0 1.5rem;
+    }
+
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      padding: 0.55rem 0.6rem;
+      vertical-align: top;
+    }
+
+    th {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    code {
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.82em;
+      background: var(--code-bg);
+      padding: 0.08em 0.28em;
+      border: 1px solid var(--line);
+    }
+
+    pre.code code { background: none; border: 0; padding: 0; font-size: inherit; }
+
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps > li {
+      counter-increment: step;
+      position: relative;
+      padding: 0.2rem 0 1.1rem 2.4rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .steps > li::before {
+      content: counter(step, decimal-leading-zero);
+      position: absolute;
+      left: 0;
+      top: 0.25rem;
+      font-family: "Big Shoulders Display", sans-serif;
+      font-size: 1.3rem;
+      color: var(--heat);
+    }
+
+    footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      font-family: "Fragment Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        color: #111;
+        background-image: none;
+      }
+      nav.toc, .copy, body::before { display: none !important; }
+      section { break-inside: avoid; border-left-color: #333; }
+      a { color: #111; }
+      .diagram, pre.code, .callout { border-color: #ccc; background: #f7f7f5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="kicker">Field guide · Docker · AWS · Azure · GCP</p>
+      <h1>Deploy the knowledge assistant</h1>
+      <p class="lede">
+        One HTML operations manual for this repo. The recommended start is
+        <strong>Docker Compose on a single EC2 instance</strong>. Azure and GCP
+        single-VM variants, then a scalable architecture per cloud, follow the
+        same five-container stack.
+      </p>
+    </header>
+
+    <nav class="toc" aria-label="On this page">
+      <a href="#stack">Stack</a>
+      <a href="#prereqs">Prerequisites</a>
+      <a href="#ec2">Start here · EC2</a>
+      <a href="#azure-vm">Azure VM</a>
+      <a href="#gcp-vm">GCP VM</a>
+      <a href="#scale-aws">Scale · AWS</a>
+      <a href="#scale-azure">Scale · Azure</a>
+      <a href="#scale-gcp">Scale · GCP</a>
+      <a href="#ops">Hardening</a>
+    </nav>
+
+    <section id="stack">
+      <h2>What you are deploying</h2>
+      <p class="meta">Matches docker-compose.yml · five containers</p>
+      <p>
+        The Compose file runs <strong>api</strong> (FastAPI / Uvicorn on port
+        <code>8000</code>), <strong>streamlit</strong> (UI on <code>8501</code>,
+        <code>API_URL=http://api:8000</code>), and internal-only
+        <strong>postgres</strong>, <strong>redis</strong>, and
+        <strong>chromadb</strong>. Postgres, Redis, and Chroma are not published
+        to the host. Chat is Server-Sent Events at
+        <code>/api/v1/chat/stream</code>. Health checks:
+        <code>GET /api/v1/health/live</code> and
+        <code>GET /api/v1/health/ready</code>.
+      </p>
+      <figure class="diagram">
+        <figcaption>Logical stack — Compose services</figcaption>
+        <pre class="mermaid">
+flowchart LR
+  subgraph compose [DockerCompose]
+    ui[Streamlit_8501]
+    api[FastAPI_8000]
+    pg[(PostgreSQL)]
+    chroma[(ChromaDB)]
+    redis[Redis]
+  end
+  users[Operators] --> ui
+  users --> api
+  ui --> api
+  api --> pg
+  api --> chroma
+  api --> redis
+        </pre>
+      </figure>
+      <table>
+        <thead>
+          <tr><th>Service</th><th>Image / build</th><th>Port</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>api</td><td><code>docker/Dockerfile.api</code></td><td>8000</td><td>Runs Alembic then seed, then Uvicorn</td></tr>
+          <tr><td>streamlit</td><td><code>docker/Dockerfile.streamlit</code></td><td>8501</td><td>Talks to API over the Compose network</td></tr>
+          <tr><td>postgres</td><td><code>postgres:15-alpine</code></td><td>internal 5432</td><td>Volume <code>postgres_data</code></td></tr>
+          <tr><td>chromadb</td><td><code>chromadb/chroma:0.5.3</code></td><td>internal 8000</td><td>Volume <code>chroma_data</code></td></tr>
+          <tr><td>redis</td><td><code>redis:7-alpine</code></td><td>internal 6379</td><td>Reserved; not required for current app paths</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <span class="label">HITL constraint</span>
+        LangGraph uses in-process <code>MemorySaver</code>. Approval resume lives
+        in that API process. Multiple API replicas break HITL unless you add
+        session affinity or switch to a Postgres checkpointer (not in this repo
+        yet). Keep <strong>one API replica</strong> on a single VM and in the
+        scalable designs below. Chroma is also stateful: run one instance, not N
+        independent Chromas.
+      </div>
+    </section>
+
+    <section id="prereqs" class="neutral">
+      <h2>Shared prerequisites</h2>
+      <p class="meta">Every cloud · every topology</p>
+      <ul>
+        <li>Docker Engine and the Compose plugin on the host (or a platform that runs the same images).</li>
+        <li>A filled <code>.env</code> from <code>.env.example</code>: <code>OPENAI_API_KEY</code> (and optional <code>ANTHROPIC_API_KEY</code>), a long random <code>JWT_SECRET</code>, a strong <code>POSTGRES_PASSWORD</code>, <code>ENVIRONMENT=production</code>.</li>
+        <li><code>CORS_ALLOWED_ORIGINS</code> set to the public UI origin (for example <code>https://ui.example.com</code>). Streamlit is server-to-server and does not rely on CORS.</li>
+        <li>TLS in front of Streamlit and the API. Do not leave 8000/8501 on the public internet without a proxy.</li>
+        <li>Firewall: public 80/443 (and SSH or SSM from your IP). Never publish 5432, 6379, or Chroma.</li>
+      </ul>
+      <p>
+        Local Compose bind-mounts <code>.:/app</code> and runs Uvicorn with
+        <code>--reload</code>. Drop both for a real deploy — the Dockerfiles
+        already copy the application into the image.
+      </p>
+    </section>
+
+    <section id="ec2">
+      <h2>Start here: simple EC2</h2>
+      <p class="meta">Default path · Ubuntu 22.04 or Amazon Linux 2023 · t3.large</p>
+      <p>
+        Put all five containers on one instance. Size: about 2 vCPU / 8 GB RAM
+        (<code>t3.large</code> or similar) is a practical floor for API +
+        Streamlit + Postgres + Chroma. Attach enough EBS for Docker volumes
+        (20 GB gp3 is a starting point).
+      </p>
+      <figure class="diagram">
+        <figcaption>Architecture — single EC2 instance</figcaption>
+        <pre class="mermaid">
+flowchart LR
+  users[Users]
+  subgraph vpc [VPC]
+    subgraph publicNet [PublicSubnet]
+      sg[SecurityGroup_22_80_443]
+      subgraph ec2 [EC2_t3_large]
+        caddy[Caddy_TLS]
+        subgraph compose [Compose]
+          ui[Streamlit_8501]
+          api[FastAPI_8000]
+          pg[(Postgres_EBS)]
+          chroma[(Chroma_EBS)]
+          redis[Redis]
+        end
+      end
+    end
+  end
+  users --> sg
+  sg --> caddy
+  caddy --> ui
+  caddy --> api
+  ui --> api
+  api --> pg
+  api --> chroma
+  api --> redis
+        </pre>
+      </figure>
+
+      <h3>1. Instance and network</h3>
+      <ol class="steps">
+        <li>
+          Launch Ubuntu 22.04 LTS or Amazon Linux 2023. Assign a public IP (Elastic IP if you want it to survive stop/start).
+        </li>
+        <li>
+          Security group inbound: <code>22</code> from your IP only (skip if you use SSM Session Manager), <code>80</code> and <code>443</code> from <code>0.0.0.0/0</code>. No 5432, 6379, 8000, or 8501 from the internet once Caddy is up. During first bring-up you may temporarily open 8000/8501 to your IP for smoke tests.
+        </li>
+        <li>
+          Optional IAM instance profile with <code>AmazonSSMManagedInstanceCore</code> so you can use Session Manager instead of SSH.
+        </li>
+      </ol>
+
+      <h3>2. Install Docker</h3>
+      <p>Ubuntu 22.04:</p>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code>sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release &amp;&amp; echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo usermod -aG docker $USER
+newgrp docker
+docker compose version</code></pre>
+      </div>
+      <p>Amazon Linux 2023:</p>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code>sudo dnf install -y docker
+sudo systemctl enable --now docker
+sudo mkdir -p /usr/local/lib/docker/cli-plugins
+sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+sudo usermod -aG docker $USER
+newgrp docker
+docker compose version</code></pre>
+      </div>
+
+      <h3>3. App files and production Compose</h3>
+      <p>
+        Copy the repository onto the instance (git clone or <code>scp -r</code>).
+        Then <code>cp .env.example .env</code> and edit secrets. On the server,
+        remove the bind mounts and <code>--reload</code> so the baked image is
+        what runs. Example production <code>command</code> for <code>api</code>
+        (no reload) and drop <code>volumes: .:/app</code> on both <code>api</code>
+        and <code>streamlit</code>. Add <code>restart: unless-stopped</code> on
+        every service.
+      </p>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code># .env — production values
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+JWT_SECRET=generate-a-long-random-string
+POSTGRES_PASSWORD=strong-unique-password
+ENVIRONMENT=production
+CORS_ALLOWED_ORIGINS=https://ui.example.com
+LANGCHAIN_TRACING_V2=false</code></pre>
+      </div>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code># After editing compose: no .:/app mounts, no --reload
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api</code></pre>
+      </div>
+      <p>
+        On first boot the API still runs <code>alembic upgrade head</code> and
+        <code>scripts/seed.py</code>. With <code>ENVIRONMENT=production</code>,
+        seed refuses to create demo users.
+      </p>
+
+      <h3>4. TLS with Caddy</h3>
+      <p>
+        Streamlit is awkward behind a path prefix. Use two hostnames (or one
+        hostname plus <code>api.</code> subdomain). Point DNS A records at the
+        Elastic IP. Install Caddy on the host (not in Compose) so it can bind
+        80/443 and obtain certificates.
+      </p>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code># /etc/caddy/Caddyfile
+ui.example.com {
+    reverse_proxy 127.0.0.1:8501
+}
+
+api.example.com {
+    reverse_proxy 127.0.0.1:8000
+}</code></pre>
+      </div>
+      <p>
+        Set Streamlit <code>API_URL=https://api.example.com</code> (the browser
+        and the Streamlit server both call the public API URL unless you keep
+        server-side calls on <code>http://api:8000</code> and only expose the
+        API for SSE from the UI server). This app’s Streamlit process calls
+        <code>API_URL</code> from the container, so keep
+        <code>API_URL=http://api:8000</code> for server-side requests. Set
+        <code>CORS_ALLOWED_ORIGINS=https://ui.example.com</code> if a browser
+        ever talks to the API directly.
+      </p>
+      <div class="callout">
+        <span class="label">SSE</span>
+        Caddy’s reverse_proxy does not buffer SSE by default. If you switch to
+        nginx, disable proxy buffering on the API location
+        (<code>proxy_buffering off;</code>, long <code>proxy_read_timeout</code>).
+      </div>
+
+      <h3>5. First admin and smoke test</h3>
+      <p>
+        <code>POST /api/v1/users</code> requires an admin JWT, so production
+        seed-off leaves a bootstrap gap. Create the first admin inside Postgres,
+        then log in through the UI.
+      </p>
+      <div class="code-wrap">
+        <button class="copy" type="button">Copy</button>
+        <pre class="code"><code># One-shot bootstrap: hash a password in the api container, then insert.
+# Easier path for a private demo: temporarily set ENVIRONMENT=development,
+# restart api so seed.py creates admin@example.com, then set production
+# and change that password immediately.
+
+curl -sS https://api.example.com/api/v1/health/live
+curl -sS https://api.example.com/api/v1/health/ready
+# Open https://ui.example.com — login, send a chat turn, check SSE progress.</code></pre>
+      </div>
+      <p>
+        Snapshot the EBS volume after a known-good ingest. Named volumes
+        <code>postgres_data</code> and <code>chroma_data</code> live on that disk.
+      </p>
+    </section>
+
+    <section id="azure-vm" class="azure">
+      <h2>Same Compose on an Azure VM</h2>
+      <p class="meta">Delta from the EC2 playbook</p>
+      <p>
+        Use an Ubuntu 22.04 VM (Standard_D2s_v5 or similar). Follow the EC2
+        Compose, <code>.env</code>, Caddy, and smoke-test steps unchanged.
+      </p>
+      <figure class="diagram">
+        <figcaption>Architecture — Azure single VM</figcaption>
+        <pre class="mermaid">
+flowchart LR
+  users[Users]
+  subgraph vnet [VNet]
+    subgraph subnet [Subnet]
+      nsg[NSG_22_80_443]
+      subgraph vm [Linux_VM]
+        caddy[Caddy_TLS]
+        subgraph compose [Compose]
+          ui[Streamlit_8501]
+          api[FastAPI_8000]
+          pg[(Postgres_disk)]
+          chroma[(Chroma_disk)]
+          redis[Redis]
+        end
+      end
+    end
+  end
+  users --> nsg
+  nsg --> caddy
+  caddy --> ui
+  caddy --> api
+  ui --> api
+  api --> pg
+  api --> chroma
+  api --> redis
+        </pre>
+      </figure>
+      <ul>
+        <li>NSG: SSH from your IP, HTTP/HTTPS from the internet. No data-store ports.</li>
+        <li>Static public IP on the NIC. DNS A records to that IP.</li>
+        <li>Premium SSD OS disk (or a data disk) sized for Docker volumes.</li>
+        <li>Optional: Azure AD SSH login instead of a shared key.</li>
+      </ul>
+    </section>
+
+    <section id="gcp-vm" class="gcp">
+      <h2>Same Compose on Compute Engine</h2>
+      <p class="meta">Delta from the EC2 playbook</p>
+      <p>
+        Create an e2-standard-2 (or larger) Ubuntu VM. Reuse the EC2 Compose and
+        Caddy steps.
+      </p>
+      <figure class="diagram">
+        <figcaption>Architecture — GCP single VM</figcaption>
+        <pre class="mermaid">
+flowchart LR
+  users[Users]
+  subgraph vpc [VPC]
+    subgraph subnet [Subnet]
+      fw[Firewall_22_80_443]
+      subgraph gce [ComputeEngine]
+        caddy[Caddy_TLS]
+        subgraph compose [Compose]
+          ui[Streamlit_8501]
+          api[FastAPI_8000]
+          pg[(Postgres_PD)]
+          chroma[(Chroma_PD)]
+          redis[Redis]
+        end
+      end
+    end
+  end
+  users --> fw
+  fw --> caddy
+  caddy --> ui
+  caddy --> api
+  ui --> api
+  api --> pg
+  api --> chroma
+  api --> redis
+        </pre>
+      </figure>
+      <ul>
+        <li>VPC firewall: <code>tcp:22</code> from your IP, <code>tcp:80,443</code> from the internet.</li>
+        <li>Reserve a static external IP. Point DNS at it.</li>
+        <li>Persistent Disk for the boot volume; snapshots for backup.</li>
+        <li>Optional: OS Login + IAP tunnel instead of a public SSH port.</li>
+      </ul>
+    </section>
+
+    <section id="scale" class="neutral">
+      <h2>Scalable architecture</h2>
+      <p class="meta">Managed data stores · one API replica · one Chroma</p>
+      <p>
+        Split the five containers across managed services. Keep API desired
+        count at <strong>1</strong> (or sticky sessions to one task) because of
+        <code>MemorySaver</code>. Keep a single Chroma replica on a persistent
+        volume. Chat SSE needs a long idle timeout and no response buffering on
+        the load balancer.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Role</th><th>AWS</th><th>Azure</th><th>GCP</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>TLS / HTTP</td><td>ALB (idle timeout + SSE)</td><td>Application Gateway / Front Door</td><td>HTTPS LB / Cloud Run ingress</td></tr>
+          <tr><td>API + UI</td><td>ECS Fargate (2 services)</td><td>Container Apps</td><td>Cloud Run or GKE</td></tr>
+          <tr><td>Postgres</td><td>RDS PostgreSQL</td><td>Azure Database for PostgreSQL</td><td>Cloud SQL</td></tr>
+          <tr><td>Redis</td><td>ElastiCache</td><td>Azure Cache for Redis</td><td>Memorystore</td></tr>
+          <tr><td>Chroma</td><td>ECS, 1 replica, EFS</td><td>Container Apps, 1 replica + Azure Files</td><td>GCE/GKE, 1 replica + persistent disk</td></tr>
+          <tr><td>Secrets</td><td>Secrets Manager</td><td>Key Vault</td><td>Secret Manager</td></tr>
+          <tr><td>Images</td><td>ECR</td><td>ACR</td><td>Artifact Registry</td></tr>
+        </tbody>
+      </table>
+      <p>Shared rollout order on every cloud:</p>
+      <ol>
+        <li>Container registry — build and push <code>Dockerfile.api</code> and <code>Dockerfile.streamlit</code>.</li>
+        <li>Data stores — Postgres, Redis, Chroma (1 replica + disk).</li>
+        <li>Secrets — JWT, DB URL, LLM keys, <code>ENVIRONMENT=production</code>.</li>
+        <li>Compute — UI service + API service (replicas = 1).</li>
+        <li>Load balancer — TLS, SSE-friendly timeouts, health checks on <code>/api/v1/health/live</code> and <code>/api/v1/health/ready</code>.</li>
+        <li>DNS — public UI origin in <code>CORS_ALLOWED_ORIGINS</code>; Streamlit <code>API_URL</code> = internal API DNS (for example <code>http://api:8000</code> on a shared network, or the internal service URL).</li>
+        <li>Smoke test — live/ready, login, one streamed chat turn, one document upload.</li>
+      </ol>
+    </section>
+
+    <section id="scale-aws">
+      <h2>AWS scalable</h2>
+      <p class="meta">ALB · ECS Fargate · RDS · ElastiCache · Chroma on EFS</p>
+      <figure class="diagram">
+        <figcaption>Architecture — AWS scalable</figcaption>
+        <pre class="mermaid">
+flowchart TB
+  users[Users]
+  subgraph vpc [VPC]
+    subgraph publicNet [PublicSubnets]
+      alb[ALB_TLS]
+    end
+    subgraph privateNet [PrivateSubnets]
+      ui[ECS_Streamlit]
+      api[ECS_API_replicas_1]
+      chroma[ECS_Chroma_replicas_1]
+      efs[(EFS_chroma)]
+      rds[(RDS_PostgreSQL)]
+      redis[(ElastiCache)]
+    end
+    secrets[SecretsManager]
+    ecr[ECR]
+  end
+  users --> alb
+  alb --> ui
+  alb --> api
+  ui --> api
+  api --> rds
+  api --> redis
+  api --> chroma
+  chroma --> efs
+  api --> secrets
+  ui --> ecr
+  api --> ecr
+        </pre>
+      </figure>
+      <ul>
+        <li>ALB target groups: UI :8501 and API :8000. Health: API <code>/api/v1/health/ready</code>. Idle timeout ≥ 120s for SSE. Do not enable response buffering features that hold the stream.</li>
+        <li>ECS services: Streamlit can scale out; API desired count = 1 until a Postgres checkpointer exists.</li>
+        <li>RDS PostgreSQL 15. Point <code>DATABASE_URL</code> at it. Run migrations on API startup (already in the container command) or a one-off task.</li>
+        <li>ElastiCache Redis for <code>REDIS_URL</code>.</li>
+        <li>Chroma: one Fargate task, EFS mounted at the Chroma data path. <code>CHROMA_HOST</code> / <code>CHROMA_PORT</code> on the API task point at that service’s Cloud Map name.</li>
+        <li>Inject secrets from Secrets Manager. Images from ECR.</li>
+      </ul>
+    </section>
+
+    <section id="scale-azure" class="azure">
+      <h2>Azure scalable</h2>
+      <p class="meta">Front Door / App Gateway · Container Apps · Azure Database · Cache · Files</p>
+      <figure class="diagram">
+        <figcaption>Architecture — Azure scalable</figcaption>
+        <pre class="mermaid">
+flowchart TB
+  users[Users]
+  subgraph vnet [VNet]
+    fd[FrontDoor_or_AppGateway]
+    ui[ContainerApp_Streamlit]
+    api[ContainerApp_API_replicas_1]
+    chroma[ContainerApp_Chroma_replicas_1]
+    files[(AzureFiles)]
+    pg[(AzureDatabase_PostgreSQL)]
+    redis[(AzureCache_Redis)]
+    kv[KeyVault]
+    acr[ACR]
+  end
+  users --> fd
+  fd --> ui
+  fd --> api
+  ui --> api
+  api --> pg
+  api --> redis
+  api --> chroma
+  chroma --> files
+  api --> kv
+  ui --> acr
+  api --> acr
+        </pre>
+      </figure>
+      <ul>
+        <li>Ingress: Application Gateway or Front Door with a generous request timeout for SSE. Disable buffering if the SKU exposes it.</li>
+        <li>Container Apps: UI min replicas ≥ 1; API max replicas = 1 (or session affinity).</li>
+        <li>Azure Database for PostgreSQL Flexible Server; Azure Cache for Redis.</li>
+        <li>Chroma: one Container App revision, Azure Files volume for persistence.</li>
+        <li>Key Vault references for env; ACR for images.</li>
+      </ul>
+    </section>
+
+    <section id="scale-gcp" class="gcp">
+      <h2>GCP scalable</h2>
+      <p class="meta">HTTPS LB · Cloud Run · Cloud SQL · Memorystore · Chroma on GCE</p>
+      <figure class="diagram">
+        <figcaption>Architecture — GCP scalable</figcaption>
+        <pre class="mermaid">
+flowchart TB
+  users[Users]
+  subgraph vpc [VPC]
+    lb[HTTPS_LoadBalancer]
+    ui[CloudRun_Streamlit]
+    api[CloudRun_API_max_instances_1]
+    chroma[GCE_or_GKE_Chroma_replicas_1]
+    disk[(PersistentDisk)]
+    sql[(CloudSQL_PostgreSQL)]
+    redis[(Memorystore)]
+    sm[SecretManager]
+    ar[ArtifactRegistry]
+  end
+  users --> lb
+  lb --> ui
+  lb --> api
+  ui --> api
+  api --> sql
+  api --> redis
+  api --> chroma
+  chroma --> disk
+  api --> sm
+  ui --> ar
+  api --> ar
+        </pre>
+      </figure>
+      <ul>
+        <li>Cloud Run for Streamlit and API. Set API <code>max instances = 1</code> (HITL). Request timeout at the limit; SSE needs a long-lived HTTP connection (consider GKE if Cloud Run request limits are too short for your chats).</li>
+        <li>Cloud SQL PostgreSQL; Memorystore Redis. Use the Cloud SQL Auth Proxy or a private IP from the serverless VPC connector.</li>
+        <li>Chroma on a small GCE VM or a 1-replica GKE Deployment with a Persistent Disk. Cloud Run cannot hold Chroma’s on-disk index reliably across instances.</li>
+        <li>Secret Manager + Artifact Registry.</li>
+      </ul>
+    </section>
+
+    <section id="ops" class="neutral">
+      <h2>Hardening and operations</h2>
+      <p class="meta">Backups · secrets · upgrades</p>
+      <ul>
+        <li>Do not publish Postgres, Redis, or Chroma on a public IP. Compose already omits host ports; keep it that way on VMs. In scalable topologies, security groups / NSGs / firewalls allow only the API (and Chroma only from the API).</li>
+        <li>Single VM backups: EBS / Azure disk / Persistent Disk snapshots, plus occasional <code>docker compose exec postgres pg_dump</code>. Snapshot Chroma’s volume too — a Postgres-only restore leaves embeddings missing.</li>
+        <li>Managed Postgres: automated snapshots (RDS, Azure Backup, Cloud SQL). Still back up Chroma separately.</li>
+        <li>Rotate <code>JWT_SECRET</code> only with a planned logout of all sessions. Rotate LLM keys in the same secret store you inject at runtime.</li>
+        <li>LangSmith is optional (<code>LANGCHAIN_TRACING_V2</code> + <code>LANGCHAIN_API_KEY</code>). Leave it off if traces must not leave the VPC.</li>
+        <li>Upgrade on a VM: <code>git pull</code> then <code>docker compose up --build -d</code>. Volumes persist; Alembic runs when the API container starts.</li>
+        <li>Upgrade on ECS/Cloud Run: push a new image tag, roll the UI first, then the API (single replica). Confirm <code>/health/ready</code> before sending traffic.</li>
+      </ul>
+      <div class="callout ok">
+        <span class="label">Checklist</span>
+        <code>ENVIRONMENT=production</code> · strong DB password · JWT secret ·
+        TLS · SG/NSG/firewall locked · no bind mounts · no <code>--reload</code>
+        · API replicas = 1 · Chroma replicas = 1 · live + ready 200 · one SSE
+        chat turn succeeds.
+      </div>
+    </section>
+
+    <footer>
+      Multi-Agent Knowledge Assistant · open this file in a browser · print to PDF from the browser print dialog.
+    </footer>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { curve: "linear", htmlLabels: true }
+    });
+
+    document.querySelectorAll(".code-wrap").forEach(function (wrap) {
+      var btn = wrap.querySelector(".copy");
+      var code = wrap.querySelector("pre.code");
+      if (!btn || !code) return;
+      btn.addEventListener("click", function () {
+        navigator.clipboard.writeText(code.innerText).then(function () {
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
